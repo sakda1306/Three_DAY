@@ -10,62 +10,88 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.*
 
-// 1. Model ข้อมูลจำลอง
-// 1. ปรับ Model ให้มี type
+// 1. Model ข้อมูล
 data class ExpenseItem(
     val id: Int,
     val category: String,
     val amount: Double,
     val color: Color,
-    val date: String,
+    val date: String, // Format: yyyy-MM-dd
     val type: String // "รายรับ" หรือ "รายจ่าย"
 )
 
-// 2. ข้อมูลจำลองใหม่ (อ้างอิงจากฟอร์ม: มีประเภท รายการ หมวดหมู่ วันที่)
+// 2. ข้อมูลจำลอง (Mock Data)
 val mockExpenses = listOf(
-    ExpenseItem(1, "อาหาร", 4500.0, Color(0xFF4CAF50), "2023-07-10", "รายจ่าย"),
-    ExpenseItem(2, "เงินเดือน", 25000.0, Color(0xFF2196F3), "2023-07-01", "รายรับ"),
-    ExpenseItem(3, "เดินทาง", 1200.0, Color(0xFF2196F3), "2023-07-11", "รายจ่าย"),
-    ExpenseItem(4, "ชอปปิ้ง", 3000.0, Color(0xFFFF9800), "2023-07-12", "รายจ่าย"),
-    ExpenseItem(5, "ขายของ", 5000.0, Color(0xFF9C27B0), "2023-07-15", "รายรับ")
+    ExpenseItem(1, "อาหาร", 4500.0, Color(0xFF4CAF50), "2026-02-10", "รายจ่าย"),
+    ExpenseItem(2, "เงินเดือน", 25000.0, Color(0xFF2196F3), "2026-02-01", "รายรับ"),
+    ExpenseItem(3, "เดินทาง", 1200.0, Color(0xFFFFEB3B), "2026-02-11", "รายจ่าย"),
+    ExpenseItem(4, "ชอปปิ้ง", 3000.0, Color(0xFFFF9800), "2026-02-12", "รายจ่าย"),
+    ExpenseItem(5, "ขายของ", 5000.0, Color(0xFF9C27B0), "2026-02-05", "รายรับ")
 )
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
-    // 1. States สำหรับการควบคุม UI
-    var selectedMonth by remember { mutableStateOf("07") } // เก็บเป็นเลขเดือนเพื่อให้กรองง่าย
-    var selectedFilter by remember { mutableStateOf("ทั้งหมด") }
-    var isMonthMenuExpanded by remember { mutableStateOf(false) }
-    var isFilterMenuExpanded by remember { mutableStateOf(false) }
+    // --- States สำหรับการควบคุม UI ---
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateRangePickerState = rememberDateRangePickerState()
     var isSortAscending by remember { mutableStateOf(false) }
 
-    val filterOptions = listOf("ทั้งหมด", "วันนี้", "เดือนนี้")
-    val monthOptions = mapOf("06" to "มิถุนายน", "07" to "กรกฎาคม", "08" to "สิงหาคม")
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    // 2. Logic การกรองข้อมูล (Filtering)
-    // ใช้ remember ที่มี keys เพื่อให้คำนวณใหม่เฉพาะเมื่อ filter เปลี่ยน
-    val filteredExpenses = remember(selectedFilter, selectedMonth) {
-        mockExpenses.filter { item ->
-            when (selectedFilter) {
-                "วันนี้" -> item.date == "2023-07-12" // สมมติวันที่ปัจจุบัน
-                "เดือนนี้" -> item.date.contains("-$selectedMonth-")
-                else -> true // ทั้งหมด
-            }
+    // --- คำนวณช่วงวันที่เพื่อแสดงผลบนปุ่ม ---
+    val selectedDateText = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
+        val start = dateRangePickerState.selectedStartDateMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+        val end = dateRangePickerState.selectedEndDateMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+
+        if (start != null && end != null) {
+            "${start.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${end.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}"
+        } else {
+            "เลือกช่วงวันที่"
         }
     }
 
-    // 3. Logic การเรียงลำดับ (Sorting)
+    // --- Logic การกรองข้อมูล (Filtering) ---
+    val filteredExpenses = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
+        val startDate = dateRangePickerState.selectedStartDateMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+        val endDate = dateRangePickerState.selectedEndDateMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+
+        if (startDate != null && endDate != null) {
+            mockExpenses.filter { item ->
+                val itemDate = LocalDate.parse(item.date, formatter)
+                (itemDate.isEqual(startDate) || itemDate.isAfter(startDate)) &&
+                        (itemDate.isEqual(endDate) || itemDate.isBefore(endDate))
+            }
+        } else {
+            mockExpenses
+        }
+    }
+
+    // --- Logic การเรียงลำดับ (Sorting) ---
     val displayedExpenses = remember(filteredExpenses, isSortAscending) {
         if (isSortAscending) {
             filteredExpenses.sortedBy { it.amount }
@@ -74,13 +100,9 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
         }
     }
 
-    // 4. คำนวณยอดเงินจากข้อมูลที่กรองแล้วเท่านั้น
-    val totalIncome = remember(displayedExpenses) {
-        displayedExpenses.filter { it.type == "รายรับ" }.sumOf { it.amount }
-    }
-    val totalExpense = remember(displayedExpenses) {
-        displayedExpenses.filter { it.type == "รายจ่าย" }.sumOf { it.amount }
-    }
+    // --- คำนวณยอดเงินรวม ---
+    val totalIncome = displayedExpenses.filter { it.type == "รายรับ" }.sumOf { it.amount }
+    val totalExpense = displayedExpenses.filter { it.type == "รายจ่าย" }.sumOf { it.amount }
     val balance = totalIncome - totalExpense
 
     Column(
@@ -89,61 +111,28 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // --- Header ---
+        // Header
         Text(text = "Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(text = "สรุปผลการใช้จ่าย", fontSize = 12.sp, color = Color.Gray)
 
-        // --- ส่วนที่ 2: Filter & Sort (ปรับปรุงใหม่) ---
+        // --- ส่วนเลือกวันที่ & Sort ---
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                // Dropdown เลือกช่วงเวลา
-                Box {
-                    Text(
-                        text = selectedFilter,
-                        modifier = Modifier.clickable { isFilterMenuExpanded = true },
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    DropdownMenu(expanded = isFilterMenuExpanded, onDismissRequest = { isFilterMenuExpanded = false }) {
-                        filterOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = { selectedFilter = option; isFilterMenuExpanded = false }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Dropdown เลือกเดือน (แสดงเฉพาะเมื่อเลือก "เดือนนี้")
-                if (selectedFilter == "เดือนนี้") {
-                    Box {
-                        Row(modifier = Modifier.clickable { isMonthMenuExpanded = true }) {
-                            Text(text = "(${monthOptions[selectedMonth]})", color = Color.Gray)
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp) // ใช้ Modifier ในการกำหนดขนาด
-                            )
-                        }
-                        DropdownMenu(expanded = isMonthMenuExpanded, onDismissRequest = { isMonthMenuExpanded = false }) {
-                            monthOptions.forEach { (key, value) ->
-                                DropdownMenuItem(
-                                    text = { Text(value) },
-                                    onClick = { selectedMonth = key; isMonthMenuExpanded = false }
-                                )
-                            }
-                        }
-                    }
-                }
+            OutlinedButton(
+                onClick = { showDatePicker = true },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(text = selectedDateText, fontSize = 14.sp)
             }
 
-            // ปุ่ม Sort
+            Spacer(Modifier.width(8.dp))
+
             IconButton(onClick = { isSortAscending = !isSortAscending }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
@@ -153,43 +142,43 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
             }
         }
 
-        // --- ส่วนที่ 3: กราฟวงกลม (ใช้ข้อมูลที่กรองแล้ว) ---
+        // --- กราฟวงกลม ---
         Box(modifier = Modifier.size(200.dp).padding(16.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 var startAngle = -90f
-                displayedExpenses.forEach { item ->
+                displayedExpenses.filter { it.type == "รายจ่าย" }.forEach { item ->
                     val sweepAngle = if (totalExpense > 0) (item.amount.toFloat() / totalExpense.toFloat()) * 360f else 0f
                     drawArc(
                         color = item.color,
                         startAngle = startAngle,
                         sweepAngle = sweepAngle,
                         useCenter = false,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 35.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        style = Stroke(width = 30.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     )
                     startAngle += sweepAngle
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("รวมยอดที่เลือก", fontSize = 10.sp, color = Color.Gray)
+                Text("รายจ่ายช่วงนี้", fontSize = 10.sp, color = Color.Gray)
                 Text("฿${String.format("%,.0f", totalExpense)}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // --- ส่วนที่ 4: สรุปยอดเงิน ---
-        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color(0xFFF9F9F9)) {
+        // --- สรุปยอดเงิน ---
+        Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color(0xFFF5F5F5)) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SummaryRow(label = "รายรับทั้งหมด", value = totalIncome, color = Color(0xFF4CAF50))
-                SummaryRow(label = "ยอดที่แสดง", value = totalExpense, color = Color(0xFFF44336))
-                HorizontalDivider()
+                SummaryRow(label = "รายรับ", value = totalIncome, color = Color(0xFF4CAF50))
+                SummaryRow(label = "รายจ่าย", value = totalExpense, color = Color(0xFFF44336))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 SummaryRow(label = "คงเหลือ", value = balance, color = if (balance >= 0) Color(0xFF2196F3) else Color.Red, isBold = true)
             }
         }
 
-        // --- ส่วนที่ 5: รายการ (LazyColumn) ---
+        // --- รายการข้อมูล ---
         Text(
-            "รายการ (${displayedExpenses.size})",
+            "รายการในช่วงนี้ (${displayedExpenses.size})",
             modifier = Modifier.align(Alignment.Start).padding(top = 20.dp, bottom = 8.dp),
             fontWeight = FontWeight.Bold, fontSize = 14.sp
         )
@@ -198,35 +187,48 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
             items(displayedExpenses) { item -> CategoryRow(item) }
         }
 
-        // --- ส่วนที่ 6: ปุ่มบันทึก ---
-        Button(onClick = onNavigateToAddExpense, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp), shape = RoundedCornerShape(12.dp)) {
+        // ปุ่มเพิ่มรายการ
+        Button(
+            onClick = onNavigateToAddExpense,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
             Text("บันทึกค่าใช้จ่ายใหม่")
+        }
+    }
+
+    // --- DateRangePicker Dialog ---
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("ตกลง") }
+            }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                modifier = Modifier.height(450.dp).padding(16.dp),
+                title = { Text("เลือกช่วงวันที่ที่ต้องการดูสรุป") },
+                showModeToggle = false
+            )
         }
     }
 }
 
 @Composable
 fun SummaryRow(label: String, value: Double, color: Color, isBold: Boolean = false) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(8.dp).background(color, shape = CircleShape))
             Spacer(modifier = Modifier.width(8.dp))
             Text(text = label, fontSize = 14.sp)
         }
-        Text(
-            text = "฿$value",
-            fontSize = 14.sp,
-            fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal
-        )
+        Text(text = "฿${String.format("%,.2f", value)}", fontSize = 14.sp, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
 @Composable
 fun CategoryRow(item: ExpenseItem) {
-    // กำหนดสีของตัวเลขตามประเภท
     val amountColor = if (item.type == "รายรับ") Color(0xFF4CAF50) else Color.Black
     val prefix = if (item.type == "รายรับ") "+" else "-"
 
@@ -240,33 +242,14 @@ fun CategoryRow(item: ExpenseItem) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // วงกลมสีหมวดหมู่
                 Box(modifier = Modifier.size(12.dp).background(item.color, shape = CircleShape))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(text = item.category, fontWeight = FontWeight.Medium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // แสดงประเภทเล็กๆ
-                        Text(
-                            text = item.type,
-                            fontSize = 10.sp,
-                            color = if(item.type == "รายรับ") Color(0xFF4CAF50) else Color.Gray,
-                            modifier = Modifier.background(
-                                color = if(item.type == "รายรับ") Color(0xFFE8F5E9) else Color(0xFFF5F5F5),
-                                shape = RoundedCornerShape(4.dp)
-                            ).padding(horizontal = 4.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = item.date, fontSize = 11.sp, color = Color.Gray)
-                    }
+                    Text(text = item.date, fontSize = 11.sp, color = Color.Gray)
                 }
             }
-            // แสดงยอดเงินพร้อมเครื่องหมาย
-            Text(
-                text = "$prefix ฿${String.format("%,.2f", item.amount)}",
-                fontWeight = FontWeight.Bold,
-                color = amountColor
-            )
+            Text(text = "$prefix ฿${String.format("%,.2f", item.amount)}", fontWeight = FontWeight.Bold, color = amountColor)
         }
     }
 }
