@@ -1,11 +1,11 @@
 package com.example.myapplication
 
+import Expense
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+// import androidx.compose.foundation.lazy.LazyColumn  <-- ลบออกไม่ได้ใช้แล้ว
+// import androidx.compose.foundation.lazy.items       <-- ลบออกไม่ได้ใช้แล้ว
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,53 +26,62 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 
-// 1. Model ข้อมูล
+// --- Model และ Helper Function เก็บไว้เหมือนเดิม ---
 data class ExpenseItem(
-    val id: Int,
+    val id: Long,
     val category: String,
     val amount: Double,
     val color: Color,
-    val date: String, // Format: yyyy-MM-dd
-    val type: String // "รายรับ" หรือ "รายจ่าย"
+    val date: String,
+    val type: String,
+    val rawDate: LocalDate
 )
 
-// 2. ข้อมูลจำลอง (Mock Data)
-val mockExpenses = listOf(
-    ExpenseItem(1, "อาหาร", 4500.0, Color(0xFF4CAF50), "2026-02-10", "รายจ่าย"),
-    ExpenseItem(2, "เงินเดือน", 25000.0, Color(0xFF2196F3), "2026-02-01", "รายรับ"),
-    ExpenseItem(3, "เดินทาง", 1200.0, Color(0xFFFFEB3B), "2026-02-11", "รายจ่าย"),
-    ExpenseItem(4, "ชอปปิ้ง", 3000.0, Color(0xFFFF9800), "2026-02-12", "รายจ่าย"),
-    ExpenseItem(5, "ขายของ", 5000.0, Color(0xFF9C27B0), "2026-02-05", "รายรับ")
-)
+fun getCategoryColor(category: String): Color {
+    return when (category) {
+        "อาหาร", "🍔 อาหาร" -> Color(0xFF4CAF50)
+        "เดินทาง", "🚗 เดินทาง" -> Color(0xFFFFEB3B)
+        "บันเทิง", "🎬 บันเทิง" -> Color(0xFF9C27B0)
+        "ของใช้ส่วนตัว", "🛍️ ของใช้ส่วนตัว" -> Color(0xFFFF9800)
+        "เงินเดือน" -> Color(0xFF2196F3)
+        "รายรับ" -> Color(0xFF00BCD4)
+        else -> Color.Gray
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
-    // --- States สำหรับการควบคุม UI ---
+fun DashboardScreen(
+    expenseList: List<Expense>,
+    onNavigateToAddExpense: () -> Unit,
+    onNavigateToList: () -> Unit // *** เพิ่มพารามิเตอร์นี้ ***
+) {
+    // --- States ---
     var showDatePicker by remember { mutableStateOf(false) }
     val dateRangePickerState = rememberDateRangePickerState()
-    var isSortAscending by remember { mutableStateOf(false) }
+    // var isSortAscending ... ลบออกได้เลยเพราะย้าย List ไปหน้าอื่นแล้ว
 
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    // แปลงข้อมูล
+    val allExpenses = remember(expenseList) {
+        expenseList.map { expense ->
+            val dateObj = Instant.ofEpochMilli(expense.date)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
 
-    // --- คำนวณช่วงวันที่เพื่อแสดงผลบนปุ่ม ---
-    val selectedDateText = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
-        val start = dateRangePickerState.selectedStartDateMillis?.let {
-            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-        }
-        val end = dateRangePickerState.selectedEndDateMillis?.let {
-            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-        }
-
-        if (start != null && end != null) {
-            "${start.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${end.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}"
-        } else {
-            "เลือกช่วงวันที่"
+            ExpenseItem(
+                id = expense.id,
+                category = expense.category,
+                amount = expense.amount,
+                color = getCategoryColor(expense.category),
+                date = dateObj.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
+                type = expense.type,
+                rawDate = dateObj
+            )
         }
     }
 
-    // --- Logic การกรองข้อมูล (Filtering) ---
-    val filteredExpenses = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
+    // --- Logic การกรองข้อมูล (เก็บไว้คำนวณกราฟ) ---
+    val filteredExpenses = remember(allExpenses, dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
         val startDate = dateRangePickerState.selectedStartDateMillis?.let {
             Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
         }
@@ -81,29 +90,34 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
         }
 
         if (startDate != null && endDate != null) {
-            mockExpenses.filter { item ->
-                val itemDate = LocalDate.parse(item.date, formatter)
-                (itemDate.isEqual(startDate) || itemDate.isAfter(startDate)) &&
-                        (itemDate.isEqual(endDate) || itemDate.isBefore(endDate))
+            allExpenses.filter { item ->
+                (item.rawDate.isEqual(startDate) || item.rawDate.isAfter(startDate)) &&
+                        (item.rawDate.isEqual(endDate) || item.rawDate.isBefore(endDate))
             }
         } else {
-            mockExpenses
+            allExpenses
         }
     }
 
-    // --- Logic การเรียงลำดับ (Sorting) ---
-    val displayedExpenses = remember(filteredExpenses, isSortAscending) {
-        if (isSortAscending) {
-            filteredExpenses.sortedBy { it.amount }
-        } else {
-            filteredExpenses.sortedByDescending { it.amount }
-        }
-    }
-
-    // --- คำนวณยอดเงินรวม ---
-    val totalIncome = displayedExpenses.filter { it.type == "รายรับ" }.sumOf { it.amount }
-    val totalExpense = displayedExpenses.filter { it.type == "รายจ่าย" }.sumOf { it.amount }
+    // คำนวณยอดเงินรวม
+    val totalIncome = filteredExpenses.filter { it.type == "รายรับ" }.sumOf { it.amount }
+    val totalExpense = filteredExpenses.filter { it.type == "รายจ่าย" }.sumOf { it.amount }
     val balance = totalIncome - totalExpense
+
+    // คำนวณวันที่สำหรับปุ่ม
+    val selectedDateText = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
+        val start = dateRangePickerState.selectedStartDateMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+        val end = dateRangePickerState.selectedEndDateMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+        if (start != null && end != null) {
+            "${start.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${end.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}"
+        } else {
+            "เลือกช่วงวันที่"
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -115,7 +129,7 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
         Text(text = "Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(text = "สรุปผลการใช้จ่าย", fontSize = 12.sp, color = Color.Gray)
 
-        // --- ส่วนเลือกวันที่ & Sort ---
+        // --- ส่วนเลือกวันที่ & ปุ่มไปหน้ารายการ ---
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -133,11 +147,12 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
 
             Spacer(Modifier.width(8.dp))
 
-            IconButton(onClick = { isSortAscending = !isSortAscending }) {
+            // *** แก้ไขตรงนี้: ปุ่มกดไปหน้า List ***
+            IconButton(onClick = onNavigateToList) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "Sort",
-                    tint = if (isSortAscending) MaterialTheme.colorScheme.primary else Color.Black
+                    contentDescription = "Go to List",
+                    tint = Color.Black
                 )
             }
         }
@@ -146,16 +161,22 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
         Box(modifier = Modifier.size(200.dp).padding(16.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 var startAngle = -90f
-                displayedExpenses.filter { it.type == "รายจ่าย" }.forEach { item ->
-                    val sweepAngle = if (totalExpense > 0) (item.amount.toFloat() / totalExpense.toFloat()) * 360f else 0f
-                    drawArc(
-                        color = item.color,
-                        startAngle = startAngle,
-                        sweepAngle = sweepAngle,
-                        useCenter = false,
-                        style = Stroke(width = 30.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    startAngle += sweepAngle
+                val expenseItems = filteredExpenses.filter { it.type == "รายจ่าย" }
+
+                if (expenseItems.isEmpty()) {
+                    drawCircle(color = Color.LightGray, style = Stroke(width = 30.dp.toPx()))
+                } else {
+                    expenseItems.forEach { item ->
+                        val sweepAngle = if (totalExpense > 0) (item.amount.toFloat() / totalExpense.toFloat()) * 360f else 0f
+                        drawArc(
+                            color = item.color,
+                            startAngle = startAngle,
+                            sweepAngle = sweepAngle,
+                            useCenter = false,
+                            style = Stroke(width = 30.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        )
+                        startAngle += sweepAngle
+                    }
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -176,16 +197,9 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
             }
         }
 
-        // --- รายการข้อมูล ---
-        Text(
-            "รายการในช่วงนี้ (${displayedExpenses.size})",
-            modifier = Modifier.align(Alignment.Start).padding(top = 20.dp, bottom = 8.dp),
-            fontWeight = FontWeight.Bold, fontSize = 14.sp
-        )
+        // *** ลบ LazyColumn (List) ตรงนี้ออกไปแล้ว ***
 
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(displayedExpenses) { item -> CategoryRow(item) }
-        }
+        Spacer(modifier = Modifier.weight(1f)) // ดันปุ่มไปล่างสุด
 
         // ปุ่มเพิ่มรายการ
         Button(
@@ -215,6 +229,7 @@ fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
     }
 }
 
+// *** เก็บ SummaryRow และ CategoryRow ไว้ที่เดิมเพื่อให้ ListScreen เรียกใช้ได้ ***
 @Composable
 fun SummaryRow(label: String, value: Double, color: Color, isBold: Boolean = false) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

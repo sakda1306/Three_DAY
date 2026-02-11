@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -57,48 +56,63 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+// 1. Enum สำหรับระบุหน้าจอ
+enum class Screen {
+    Dashboard,
+    AddExpense,
+    List
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val db = Room.databaseBuilder( applicationContext, AppDatabase::class.java, "expense_db" ).build()
-        val repository = ExpenseRepository(db.expenseDao())
 
+        // Setup Room Database & ViewModel
+        val db = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "expense_db").build()
+        val repository = ExpenseRepository(db.expenseDao())
         val expenseViewModel = ViewModelProvider(this, ExpenseViewModelFactory(repository))[ExpenseViewModel::class.java]
 
         setContent {
             MyApplicationTheme {
-                Surface( modifier = Modifier.fillMaxSize(), color = Color(0xFFF8F9FE) ){
-                    AddExpenseScreen(
-                        onSaveExpense = { expense ->
-                            expenseViewModel.insertExpense(expense)
+                Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF8F9FE)) {
+
+                    // 2. State จัดการหน้าจอ
+                    var currentScreen by remember { mutableStateOf(Screen.Dashboard) }
+
+                    // ดึงข้อมูลรายจ่ายทั้งหมด
+                    val currentExpenses = expenseViewModel.expenses.value
+
+                    // 3. Logic การสลับหน้าจอ
+                    when (currentScreen) {
+                        Screen.Dashboard -> {
+                            DashboardScreen(
+                                expenseList = currentExpenses,
+                                onNavigateToAddExpense = { currentScreen = Screen.AddExpense },
+                                onNavigateToList = { currentScreen = Screen.List } // ลิงก์ไปหน้า List
+                            )
                         }
-                    )
+                        Screen.AddExpense -> {
+                            AddExpenseScreen(
+                                onSaveExpense = { expense ->
+                                    expenseViewModel.insertExpense(expense)
+                                    currentScreen = Screen.Dashboard // บันทึกเสร็จกลับ Dashboard
+                                }
+                            )
+                        }
+                        Screen.List -> {
+                            ListScreen(
+                                expenseList = currentExpenses,
+                                onBack = { currentScreen = Screen.Dashboard } // ย้อนกลับ Dashboard
+                            )
+                        }
+                    }
                 }
             }
         }
-
     }
 }
 
-
-//@Preview(showBackground = true)
-//@Composable
-//fun preview(){
-//    MyApplicationTheme {
-//        Surface(
-//            modifier = Modifier.fillMaxSize(),
-//            color = Color(0xFFF8F9FE)
-//        ) {
-//            AddExpenseScreen(
-//                onSaveExpense = { }
-//            )
-//            DashboardScreen {
-//            }
-//        }
-//    }
-//}
-
+// --- หน้าจอเพิ่มรายการ (AddExpenseScreen) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
@@ -254,8 +268,8 @@ fun AddExpenseScreen(
     }
 }
 
+// --- Helper Composables ---
 
-// ฟังก์ชันสำหรับ Dropdown ที่ใช้ร่วมกันได้ทั้งประเภทรายการและหมวดหมู่
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomDropdownField(
@@ -312,7 +326,6 @@ fun CustomDropdownField(
     }
 }
 
-// ฟังก์ชันสำหรับ Input ทั่วไปที่แก้ไขให้รับค่า (State) ได้
 @Composable
 fun ExpenseInputField(label: String, placeholder: String, value: String, onValueChange: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
