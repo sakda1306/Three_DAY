@@ -1,25 +1,27 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    id("com.google.devtools.ksp")
+    alias(libs.plugins.ksp)
 
 }
 
 android {
     namespace = "com.example.myapplication"
     compileSdk {
-        version = release(36)
+        version = release(35)
     }
 
     defaultConfig {
         applicationId = "com.example.myapplication"
         minSdk = 28
-        targetSdk = 36
+        compileSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
     }
+
 
     buildTypes {
         release {
@@ -37,6 +39,9 @@ android {
     buildFeatures {
         compose = true
         viewBinding = true
+    }
+    sourceSets {
+        getByName("main").java.srcDirs("src/main/kotlin")
     }
 }
 
@@ -77,5 +82,7 @@ dependencies {
 
     implementation("androidx.room:room-ktx:2.6.1")
     implementation("androidx.room:room-runtime:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1") // ใช้ ksp จัดการ annotation
+
+
 }

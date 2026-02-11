@@ -2,11 +2,31 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableStateOf // เพิ่ม import
+
 
 class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() {
+
+    // 1. สร้างตัวแปร State เพื่อเก็บรายการรายจ่าย ให้ UI สังเกตการเปลี่ยนแปลงได้
+    var expenses = mutableStateOf<List<Expense>>(emptyList())
+        private set
+
+    // 2. โหลดข้อมูลทันทีเมื่อ ViewModel ถูกสร้าง
+    init {
+        loadAllExpenses()
+    }
+
     fun insertExpense(expense: Expense) {
         viewModelScope.launch {
             repository.insert(expense)
+            loadAllExpenses() // 3. โหลดข้อมูลใหม่ทันทีหลังจากบันทึกเสร็จ
+        }
+    }
+
+    // ฟังก์ชันสำหรับไปดึงข้อมูลจาก Repository
+    private fun loadAllExpenses() {
+        viewModelScope.launch {
+            expenses.value = repository.getAll()
         }
     }
 }

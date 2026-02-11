@@ -1,12 +1,7 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        // แก้ไข: ลบ content { ... } ออกให้เหลือแค่นี้
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -19,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "My Application"
+rootProject.name = "My Application" // หรือชื่อโปรเจกต์ของคุณ
 include(":app")
