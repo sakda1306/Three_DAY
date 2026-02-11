@@ -22,6 +22,13 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             loadAllExpenses() // 3. โหลดข้อมูลใหม่ทันทีหลังจากบันทึกเสร็จ
         }
     }
+    // --- เพิ่มฟังก์ชันนี้ ---
+    fun deleteExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.delete(expense)
+            loadAllExpenses() // ลบเสร็จแล้วโหลดข้อมูลใหม่ทันที
+        }
+    }
 
     // ฟังก์ชันสำหรับไปดึงข้อมูลจาก Repository
     private fun loadAllExpenses() {

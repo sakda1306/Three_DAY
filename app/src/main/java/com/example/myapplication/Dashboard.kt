@@ -4,8 +4,8 @@ import Expense
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-// import androidx.compose.foundation.lazy.LazyColumn  <-- ลบออกไม่ได้ใช้แล้ว
-// import androidx.compose.foundation.lazy.items       <-- ลบออกไม่ได้ใช้แล้ว
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,7 +27,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 
-// --- Model และ Helper Function เก็บไว้เหมือนเดิม ---
+// --- Model และ Helper Function ---
 data class ExpenseItem(
     val id: Long,
     val category: String,
@@ -39,13 +40,23 @@ data class ExpenseItem(
 
 fun getCategoryColor(category: String): Color {
     return when (category) {
-        "อาหาร", "🍔 อาหาร" -> Color(0xFF4CAF50)
-        "เดินทาง", "🚗 เดินทาง" -> Color(0xFFFFEB3B)
-        "บันเทิง", "🎬 บันเทิง" -> Color(0xFF9C27B0)
-        "ของใช้ส่วนตัว", "🛍️ ของใช้ส่วนตัว" -> Color(0xFFFF9800)
-        "เงินเดือน" -> Color(0xFF2196F3)
-        "รายรับ" -> Color(0xFF00BCD4)
-        else -> Color.Gray
+        // --- หมวดหมู่รายจ่าย ---
+        "อาหาร", "🍔 อาหาร" -> Color(0xFF4CAF50)     // สีเขียว
+        "เดินทาง", "🚗 เดินทาง" -> Color(0xFFFFEB3B)   // สีเหลือง
+        "บันเทิง", "🎬 บันเทิง" -> Color(0xFF9C27B0)   // สีม่วง
+        "ของใช้ส่วนตัว", "🛍️ ของใช้ส่วนตัว" -> Color(0xFFFF9800) // สีส้ม
+        "ค่าเช่า/น้ำไฟ", "🏠 ค่าเช่า/น้ำไฟ" -> Color(0xFF00BCD4) // สีฟ้า Cyan
+        "รักษาพยาบาล", "💊 รักษาพยาบาล" -> Color(0xFFE91E63)   // สีชมพู
+
+        // --- หมวดหมู่รายรับ ---
+        "เงินเดือน", "💵 เงินเดือน" -> Color(0xFF2196F3) // สีฟ้า
+        "โบนัส", "💰 โบนัส" -> Color(0xFFFFC107)      // สีเหลืองอำพัน (Amber)
+        "ค้าขาย", "🏪 ค้าขาย" -> Color(0xFF009688)      // สีเขียวอมฟ้า (Teal)
+        "การลงทุน", "📈 การลงทุน" -> Color(0xFF3F51B5)   // สีน้ำเงินเข้ม (Indigo)
+        "รายได้อื่นๆ", "🎁 รายได้อื่นๆ" -> Color(0xFF607D8B) // สีเทาอมฟ้า (Blue Gray)
+
+        // กรณีไม่เข้าพวก
+        else -> Color.LightGray
     }
 }
 
@@ -54,14 +65,13 @@ fun getCategoryColor(category: String): Color {
 fun DashboardScreen(
     expenseList: List<Expense>,
     onNavigateToAddExpense: () -> Unit,
-    onNavigateToList: () -> Unit // *** เพิ่มพารามิเตอร์นี้ ***
+    onNavigateToList: () -> Unit
 ) {
     // --- States ---
     var showDatePicker by remember { mutableStateOf(false) }
     val dateRangePickerState = rememberDateRangePickerState()
-    // var isSortAscending ... ลบออกได้เลยเพราะย้าย List ไปหน้าอื่นแล้ว
 
-    // แปลงข้อมูล
+    // แปลงข้อมูลจาก Room Entity -> UI Model
     val allExpenses = remember(expenseList) {
         expenseList.map { expense ->
             val dateObj = Instant.ofEpochMilli(expense.date)
@@ -80,7 +90,7 @@ fun DashboardScreen(
         }
     }
 
-    // --- Logic การกรองข้อมูล (เก็บไว้คำนวณกราฟ) ---
+    // --- Logic การกรองข้อมูลตามวันที่ ---
     val filteredExpenses = remember(allExpenses, dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
         val startDate = dateRangePickerState.selectedStartDateMillis?.let {
             Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -99,12 +109,17 @@ fun DashboardScreen(
         }
     }
 
+    // เรียงลำดับรายการล่าสุดขึ้นก่อน (เพื่อแสดงในรายการด้านล่าง)
+    val recentExpenses = remember(filteredExpenses) {
+        filteredExpenses.sortedByDescending { it.rawDate }
+    }
+
     // คำนวณยอดเงินรวม
     val totalIncome = filteredExpenses.filter { it.type == "รายรับ" }.sumOf { it.amount }
     val totalExpense = filteredExpenses.filter { it.type == "รายจ่าย" }.sumOf { it.amount }
     val balance = totalIncome - totalExpense
 
-    // คำนวณวันที่สำหรับปุ่ม
+    // คำนวณวันที่สำหรับแสดงบนปุ่ม
     val selectedDateText = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
         val start = dateRangePickerState.selectedStartDateMillis?.let {
             Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -129,7 +144,7 @@ fun DashboardScreen(
         Text(text = "Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(text = "สรุปผลการใช้จ่าย", fontSize = 12.sp, color = Color.Gray)
 
-        // --- ส่วนเลือกวันที่ & ปุ่มไปหน้ารายการ ---
+        // --- ส่วนเลือกวันที่ & ปุ่มไปหน้ารายการเต็ม ---
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -147,7 +162,6 @@ fun DashboardScreen(
 
             Spacer(Modifier.width(8.dp))
 
-            // *** แก้ไขตรงนี้: ปุ่มกดไปหน้า List ***
             IconButton(onClick = onNavigateToList) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
@@ -157,28 +171,44 @@ fun DashboardScreen(
             }
         }
 
-        // --- กราฟวงกลม ---
+        // --- กราฟวงกลม (รายรับ vs รายจ่าย) ---
         Box(modifier = Modifier.size(200.dp).padding(16.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                var startAngle = -90f
-                val expenseItems = filteredExpenses.filter { it.type == "รายจ่าย" }
+                val strokeWidth = 30.dp.toPx()
+                val totalFlow = totalIncome + totalExpense
 
-                if (expenseItems.isEmpty()) {
-                    drawCircle(color = Color.LightGray, style = Stroke(width = 30.dp.toPx()))
+                if (totalFlow == 0.0) {
+                    drawCircle(color = Color.LightGray, style = Stroke(width = strokeWidth))
                 } else {
-                    expenseItems.forEach { item ->
-                        val sweepAngle = if (totalExpense > 0) (item.amount.toFloat() / totalExpense.toFloat()) * 360f else 0f
+                    var startAngle = -90f
+
+                    // 1. วาดส่วนรายรับ (สีเขียว)
+                    if (totalIncome > 0) {
+                        val incomeSweep = ((totalIncome / totalFlow) * 360).toFloat()
                         drawArc(
-                            color = item.color,
+                            color = Color(0xFF4CAF50),
                             startAngle = startAngle,
-                            sweepAngle = sweepAngle,
+                            sweepAngle = incomeSweep,
                             useCenter = false,
-                            style = Stroke(width = 30.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
                         )
-                        startAngle += sweepAngle
+                        startAngle += incomeSweep
+                    }
+
+                    // 2. วาดส่วนรายจ่าย (สีแดง)
+                    if (totalExpense > 0) {
+                        val expenseSweep = ((totalExpense / totalFlow) * 360).toFloat()
+                        drawArc(
+                            color = Color(0xFFF44336),
+                            startAngle = startAngle,
+                            sweepAngle = expenseSweep,
+                            useCenter = false,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                        )
                     }
                 }
             }
+
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("รายจ่ายช่วงนี้", fontSize = 10.sp, color = Color.Gray)
                 Text("฿${String.format("%,.0f", totalExpense)}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -187,7 +217,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- สรุปยอดเงิน ---
+        // --- สรุปตัวเลข ---
         Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color(0xFFF5F5F5)) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SummaryRow(label = "รายรับ", value = totalIncome, color = Color(0xFF4CAF50))
@@ -197,17 +227,32 @@ fun DashboardScreen(
             }
         }
 
-        // *** ลบ LazyColumn (List) ตรงนี้ออกไปแล้ว ***
+        // --- ส่วนแสดงรายการ (เพิ่มใหม่) ---
+        Text(
+            "รายการล่าสุด",
+            modifier = Modifier.align(Alignment.Start).padding(top = 16.dp, bottom = 8.dp),
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
 
-        Spacer(modifier = Modifier.weight(1f)) // ดันปุ่มไปล่างสุด
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f) // ใช้พื้นที่ที่เหลือทั้งหมด
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(recentExpenses) { item ->
+                CategoryRow(item)
+            }
+        }
 
         // ปุ่มเพิ่มรายการ
         Button(
             onClick = onNavigateToAddExpense,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(56.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("บันทึกค่าใช้จ่ายใหม่")
+            Text("บันทึกค่าใช้จ่าย")
         }
     }
 
@@ -229,7 +274,7 @@ fun DashboardScreen(
     }
 }
 
-// *** เก็บ SummaryRow และ CategoryRow ไว้ที่เดิมเพื่อให้ ListScreen เรียกใช้ได้ ***
+// Helper Composable
 @Composable
 fun SummaryRow(label: String, value: Double, color: Color, isBold: Boolean = false) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

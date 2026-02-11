@@ -1,4 +1,5 @@
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -14,4 +15,8 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     @JvmSuppressWildcards
     suspend fun getAllExpenses(): List<Expense>
+
+    @Delete
+    @JvmSuppressWildcards
+    suspend fun deleteExpense(expense: Expense): Int
 }
