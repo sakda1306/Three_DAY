@@ -40,6 +40,7 @@ val mockExpenses = listOf(
     ExpenseItem(5, "ขายของ", 5000.0, Color(0xFF9C27B0), "2023-07-15", "รายรับ")
 )
 
+
 @Composable
 fun DashboardScreen(onNavigateToAddExpense: () -> Unit) {
     // 1. States สำหรับการควบคุม UI
