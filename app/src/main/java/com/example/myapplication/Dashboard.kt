@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import Expense
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -145,23 +146,49 @@ fun DashboardScreen(
         Text(text = "สรุปผลการใช้จ่าย", fontSize = 12.sp, color = Color.Gray)
 
         // --- ส่วนเลือกวันที่ & ปุ่มไปหน้ารายการเต็ม ---
+        // --- ส่วนเลือกวันที่ & ปุ่มไปหน้ารายการเต็ม ---
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // --- ปุ่มเลือกวันที่ (แก้ตรงนี้) ---
             OutlinedButton(
                 onClick = { showDatePicker = true },
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).height(50.dp), // กำหนดความสูงให้สวยงาม
+                border = BorderStroke(1.dp, Color.Gray), // เพิ่มขอบให้ชัด
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent, // พื้นหลังใส
+                    contentColor = Color.Black // สี Default ของ content เป็นสีดำ
+                )
             ) {
-                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = Color.Black // บังคับสีไอคอนเป็นสีดำ
+                )
                 Spacer(Modifier.width(8.dp))
-                Text(text = selectedDateText, fontSize = 14.sp)
+
+                // แสดงข้อความวันที่
+                Text(
+                    text = selectedDateText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    // --- จุดสำคัญ: บังคับสีตัวอักษร ---
+                    color = if (selectedDateText == "เลือกช่วงวันที่") {
+                        Color.Gray // ถ้ายังไม่เลือก เป็นสีเทา
+                    } else {
+                        Color.Black // ถ้าเลือกแล้ว เป็นสีดำ (ชัดเจนทุกเครื่องแน่นอน)
+                    }
+                    // -----------------------------
+                )
             }
 
             Spacer(Modifier.width(8.dp))
 
+            // ปุ่มไปหน้า List (เหมือนเดิม)
             IconButton(onClick = onNavigateToList) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
@@ -249,10 +276,24 @@ fun DashboardScreen(
         // ปุ่มเพิ่มรายการ
         Button(
             onClick = onNavigateToAddExpense,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(56.dp),
-            shape = RoundedCornerShape(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+
+            // --- เพิ่มตรงนี้เพื่อล็อคสีปุ่ม ---
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF6750A4), // ใส่สีพื้นหลังปุ่มที่ต้องการ (เช่น สีม่วง หรือสีแบรนด์)
+                contentColor = Color.White          // ใส่สีตัวหนังสือในปุ่ม (สีขาว)
+            )
+            // ----------------------------
         ) {
-            Text("บันทึกค่าใช้จ่าย")
+            Text(
+                text = "บันทึกค่าใช้จ่าย",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 

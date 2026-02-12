@@ -6,8 +6,10 @@ import ExpenseRepository
 import ExpenseViewModel
 import ExpenseViewModelFactory
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -50,7 +54,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -131,8 +139,9 @@ fun AddExpenseScreen(
     onSaveExpense: (Expense) -> Unit,
     onCancel: () -> Unit // เพิ่มบรรทัดนี้
 ) {
-    val calendar = remember { Calendar.getInstance() }
+    val context = LocalContext.current
 
+    val calendar = remember { Calendar.getInstance() }
     var amount by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
 
@@ -276,14 +285,29 @@ fun AddExpenseScreen(
             )
         }
 
-        // --- ส่วนของปุ่มด้านล่าง ---
         Spacer(modifier = Modifier.weight(1f))
 
-        // 1. ปุ่มบันทึกรายการ (ใช้สีหลักของแอป - Primary)
         Button(
             onClick = {
+                // --- เริ่มส่วนตรวจสอบข้อมูล (Validation) ---
+
+                // เช็ค 1: ห้ามปล่อยว่าง
+                if (amount.isBlank() || title.isBlank()) {
+                    Toast.makeText(context, "กรุณากรอกจำนวนเงินและชื่อรายการ", Toast.LENGTH_SHORT).show()
+                    return@Button // จบการทำงาน ไม่บันทึก
+                }
+
+                // เช็ค 2: แปลงตัวเลข ถ้าแปลงไม่ได้จะเป็น null
+                val amountValue = amount.toDoubleOrNull()
+
+                if (amountValue == null || amountValue <= 0) {
+                    Toast.makeText(context, "กรุณาระบุจำนวนเงินที่ถูกต้อง", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+
+                // --- ถ้าข้อมูลถูกต้อง ค่อยบันทึก ---
                 val expense = Expense(
-                    amount = amount.toDoubleOrNull() ?: 0.0,
+                    amount = amountValue,
                     title = title,
                     type = selectedType,
                     category = selectedCategory,
@@ -297,13 +321,22 @@ fun AddExpenseScreen(
                 .fillMaxWidth()
                 .height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            // กำหนดสีปุ่มบันทึกให้ดูเด่น
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+
+            // --- จุดที่แก้ไข: ล็อกสีปุ่มให้ชัดเจน (ไม่ใช้ Theme ของเครื่อง) ---
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF6750A4), // สีม่วงเข้ม (เปลี่ยนเป็น Color.Blue หรือสีอื่นตามชอบได้)
+                contentColor = Color.White          // ตัวหนังสือสีขาว
             )
+            // --------------------------------------------------------
         ) {
-            Text("บันทึกรายการ", fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Text(
+                "บันทึกรายการ",
+                fontSize = 18.sp, // ปรับขนาดตัวอักษรให้ใหญ่อีกนิด
+                fontWeight = FontWeight.Bold
+            )
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Spacer(modifier = Modifier.height(12.dp)) // ระยะห่างระหว่างปุ่ม
 
@@ -338,10 +371,12 @@ fun CustomDropdownField(
     onOptionSelected: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        // ส่วนหัวข้อ (Label)
         Text(
             text = label,
             fontSize = 14.sp,
-            color = Color.DarkGray,
+            color = Color.Gray, // หรือ Color.Black ถ้าอยากให้หัวข้อเข้มด้วย
+            fontWeight = FontWeight.Medium, // เพิ่มความหนานิดหน่อย
             modifier = Modifier.padding(bottom = 6.dp)
         )
 
@@ -357,21 +392,42 @@ fun CustomDropdownField(
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
+
+                // --- จุดที่ 1: ปรับตัวหนังสือที่เลือกให้ชัดขึ้น ---
+                textStyle = TextStyle(
+                    fontSize = 16.sp,       // เพิ่มขนาด
+                    fontWeight = FontWeight.Bold, // ตัวหนา
+                    color = Color.Black     // สีดำสนิท
+                ),
+                // ----------------------------------------------
+
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.White,
                     unfocusedContainerColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+                    unfocusedIndicatorColor = Color.Transparent,
+                    // บังคับสีข้อความในสถานะต่างๆ
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black
                 )
             )
 
             ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { onExpandedChange(false) }
+                onDismissRequest = { onExpandedChange(false) },
+                modifier = Modifier.background(Color.White) // พื้นหลังเมนูสีขาว
             ) {
                 options.forEach { item ->
                     DropdownMenuItem(
-                        text = { Text(text = item) },
+                        text = {
+                            // --- จุดที่ 2: ปรับตัวหนังสือในลิสต์รายการ ---
+                            Text(
+                                text = item,
+                                fontSize = 16.sp,       // ขนาดตัวเลือกในลิสต์
+                                fontWeight = FontWeight.Normal,
+                                color = Color.Black     // สีตัวเลือก
+                            )
+                        },
                         onClick = {
                             onOptionSelected(item)
                             onExpandedChange(false)
@@ -384,20 +440,52 @@ fun CustomDropdownField(
 }
 
 @Composable
-fun ExpenseInputField(label: String, placeholder: String, value: String, onValueChange: (String) -> Unit) {
+fun ExpenseInputField(
+    label: String,
+    placeholder: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    isNumber: Boolean = false // เพิ่มตัวเลือก: ถ้าเป็นตัวเลขจะให้แป้นพิมพ์เป็นตัวเลข
+) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        // หัวข้อตัวเล็กๆ ด้านบน
         Text(
             text = label,
             fontSize = 14.sp,
             color = Color.Gray,
             modifier = Modifier.padding(bottom = 4.dp)
         )
+
         TextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = Color.LightGray) },
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    color = Color.LightGray,
+                    fontSize = 16.sp // ปรับขนาด Placeholder ให้พอดีกัน
+                )
+            },
+
+            // --- จุดสำคัญ: ปรับแต่งตัวหนังสือที่พิมพ์ ---
+            textStyle = TextStyle(
+                fontSize = 16.sp,       // 1. ขนาดใหญ่ขึ้น (เดิมปกติประมาณ 16)
+                fontWeight = FontWeight.SemiBold, // 2. ตัวหนาขึ้น
+                color = Color.Black     // 3. สีดำสนิท
+            ),
+            // ----------------------------------------
+
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
+            singleLine = true, // บังคับให้พิมพ์บรรทัดเดียว
+
+            // ปรับประเภทแป้นพิมพ์ (ถ้าเป็นช่องจำนวนเงิน ให้ขึ้นแป้นตัวเลข)
+            keyboardOptions = if (isNumber) {
+                KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
+            } else {
+                KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done)
+            },
+
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.White,
                 unfocusedContainerColor = Color.White,
